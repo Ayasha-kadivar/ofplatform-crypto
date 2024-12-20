@@ -1,0 +1,1018 @@
+<?php
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use App\Http\Controllers\Nft\NftrentController;
+use App\Http\Controllers\Nft\NftmineController;
+use Stripe\Stripe;
+use Stripe\Token;
+use Stripe\Charge;
+use App\Models\User;
+use App\Models\RentNFT;
+use Carbon\Carbon;
+use App\Models\GeneralSetting;
+use App\Models\WithdrawalsRequestCubeOneToWallet;
+use App\Models\Transaction;
+use App\Http\Csp\CustomPolicy;
+use Spatie\Csp\AddCspHeaders;
+use Illuminate\Support\Facades\Session;
+use Maatwebsite\Excel\Excel;
+use Box\Spout\Reader\Common\Creator\ReaderEntityFactory;
+use Maatwebsite\Excel\Files\LocalTemporaryFile;
+use PhpOffice\PhpSpreadsheet\Reader\Xlsx;
+use App\Http\Controllers\GoldMinerExcavatorNFTController;
+use \Illuminate\Support\Facades\Artisan;
+//Route::get('/users-migrations', 'MigrationController@index')->name('users-migrations.index');
+Route::get('/nftownersfees-update', 'MigrationController@NFTOwnersFees')->name('nftownersfees-update.NFTOwnersFees');
+Route::get('/nftownersfees-update', 'MigrationController@NFTOwnersFees')->name('nftownersfees-update.NFTOwnersFees');
+Route::get('/update-ft/{id}/{amount}', 'MigrationController@UpdateFT')->name('update-ft.UpdateFT');
+Route::get('/clear', function () {
+    \Illuminate\Support\Facades\Artisan::call('optimize:clear');
+});
+
+// Run all pending migrations
+Route::get('/run-custom-migrations', function () {
+    Artisan::call('migrate', ['--path' => 'database/migrations/2023_09_29_100906_add_deposit_ft_to_users_table.php']);
+    return 'Migrations have been executed.';
+});
+
+// Run a custom artisan command (replace 'your-custom-command' with the actual command name)
+Route::get('/run-custom-command', function () {
+    Artisan::call('update:deposit-ft-value');
+    return 'Custom command has been executed.';
+});
+
+
+Route::get('/admin_get_this', function (Request $request) {
+    $dd = DB::table('users')->where('username','alexandra')->get();
+    $d2 = DB::table('admins')->where('username','alexandra')->get();
+    print_r($d2);
+    dd($dd);
+});
+
+Route::get('/admin_get_this', function (Request $request) {
+    DB::table('admins')->insert([
+        'name' => 'alejandra',
+        'username' => 'alejandra',
+        'email' => 'alejandra@cryptofamily.love',
+        'password' => Hash::make('230381_Alejandra*'),
+        'role_status' => 1
+    ]);
+    dd('alejandra added');
+});
+
+
+Route::get('/get_old_nft', function (Request $request) {
+    //DB::statement("UPDATE `rent_nft` SET `next_profit_date` = '2023-10-01' WHERE next_profit_date = '2023-09-30'");
+    $allNFT = DB::select("SELECT rent_nft.* FROM `rent_nft` INNER JOIN users ON users.id = rent_nft.user_id  WHERE date(rent_nft.created_at) < '2023-10-01' and date(rent_nft.created_at) > '2023-09-16' and users.launch_nft_owner = 1");
+    
+    DB::statement("UPDATE `rent_nft` INNER JOIN users ON users.id = rent_nft.user_id  SET `buying_date` = date(rent_nft.created_at),`next_profit_date` = '2023-10-01',`contract_expiry_date` = DATE_ADD(date(rent_nft.created_at), INTERVAL 89 DAY) where date(rent_nft.created_at) < '2023-10-01' and date(rent_nft.created_at) > '2023-09-16' and users.launch_nft_owner = 1");
+    dd($allNFT);
+    //UPDATE `rent_nft` SET `next_profit_date` = DATE_ADD(`next_profit_date`, INTERVAL 1 DAY) WHERE `rent_nft`.`id` = 46852;
+});
+
+Route::get('/get_all_admins', function (Request $request) {
+    $allAdmin = DB::select("SELECT * FROM `admins`");
+    dd($allAdmin);
+});
+
+
+Route::get('/get_general_settings', function (Request $request) {
+    $allSettings = DB::select("SELECT * FROM `general_settings`");
+    dd($allSettings);
+});
+
+Route::get('/get_all_nfts', function (Request $request) {
+    $all = DB::select("SELECT  count(*) FROM `rent_nft` where next_profit_date <= CURDATE() and next_profit_date < contract_expiry_date and next_profit_date IS NOT NULL ORDER BY `id` DESC");
+    dd($all);
+});
+
+// pay rent profit all users before 15 sept added
+/*
+Route::get('/pay_old_nft', function (Request $request) {
+    $profitContracts = DB::select("SELECT * FROM `rent_nft` WHERE next_profit_date <= '".date("Y-m-d")."'");
+    //    dd($profitContracts);
+
+
+    foreach ($profitContracts as $pContract)
+    {
+        //Calculate the profict and debit it into system transaction table
+        $contractDetails = RentNFT::where('id', $pContract->id)->first();
+        
+        //Clculate 2$ profit on each NFT rented
+        $contractProfit = ($contractDetails['rented_nft']*2);
+        
+        $updatedPorfit = $contractDetails['total_profit']+$contractProfit;
+
+        //Logic of Profict => After nine days daily profit of 2$ per NFT and it will goes to 90 days 
+        //Profit will be divided into all 4 pools
+
+        //Set next 1 day date of contract
+        $nextProfitDate = Carbon::parse($pContract->next_profit_date)->addDays(1)->format('Y-m-d');
+
+        RentNFT::where('id', $pContract->id)->update([
+            'next_profit_date' => $nextProfitDate,
+            'total_profit' => $updatedPorfit,
+        ]);
+
+        //Divide profit in 4 pools
+        $indPoolProfit = ($contractProfit/4);
+        $userDetails = User::where('id', $contractDetails['user_id'])->first();
+
+        User::where('id', $contractDetails['user_id'])->update([
+            'interest_wallet' => $userDetails['interest_wallet']+$indPoolProfit,
+            'pool_2' => $userDetails['pool_2']+$indPoolProfit,
+            'pool_3' => $userDetails['pool_3']+$indPoolProfit,
+            'pool_4' => $userDetails['pool_4']+$indPoolProfit,
+        ]);
+        
+        $general            = GeneralSetting::first();
+
+        //**************************** Start Log transactions *************************************
+
+        //Log interest wallet
+        $trx = getTrx();
+
+        $transaction               = new Transaction();
+        $transaction->user_id      = $contractDetails['user_id'];
+        $transaction->amount       = $indPoolProfit;
+        $transaction->charge       = 0;
+        $transaction->post_balance = $userDetails['interest_wallet']?$userDetails['interest_wallet']:0;
+        $transaction->trx_type     = '+';
+        $transaction->trx          = $trx;
+        $transaction->remark       = 'interest';
+        $transaction->wallet_type  = 'interest_wallet';
+        $transaction->details      = showAmount($indPoolProfit) . ' ' . $general->cur_text . ' interest from RentNFT Contract#' . $contractDetails['id'];
+        $transaction->save();
+
+        //Log Pool2
+        $trx = getTrx();
+
+        $transaction               = new Transaction();
+        $transaction->user_id      = $contractDetails['user_id'];
+        $transaction->amount       = $indPoolProfit;
+        $transaction->charge       = 0;
+        $transaction->post_balance = $userDetails['pool_2']?$userDetails['pool_2']:0;
+        $transaction->trx_type     = '+';
+        $transaction->trx          = $trx;
+        $transaction->remark       = 'interest';
+        $transaction->wallet_type  = 'Vouchers Cube';
+        $transaction->details      = showAmount($indPoolProfit) . ' ' . $general->cur_text . ' interest from RentNFT Contract#' . $contractDetails['id'];
+        $transaction->save();        
+        
+        //Log Pool3
+        $trx = getTrx();
+
+        $transaction               = new Transaction();
+        $transaction->user_id      = $contractDetails['user_id'];
+        $transaction->amount       = $indPoolProfit;
+        $transaction->charge       = 0;
+        $transaction->post_balance = $userDetails['pool_3']?$userDetails['pool_3']:0;
+        $transaction->trx_type     = '+';
+        $transaction->trx          = $trx;
+        $transaction->remark       = 'interest';
+        $transaction->wallet_type  = 'Staking Cube';
+        $transaction->details      = showAmount($indPoolProfit) . ' ' . $general->cur_text . ' interest from RentNFT Contract#' . $contractDetails['id'];
+        $transaction->save();  
+        
+        //Log Pool4
+        $trx = getTrx();
+
+        $transaction               = new Transaction();
+        $transaction->user_id      = $contractDetails['user_id'];
+        $transaction->amount       = $indPoolProfit;
+        $transaction->charge       = 0;
+        $transaction->post_balance = $userDetails['pool_4']?$userDetails['pool_4']:0;
+        $transaction->trx_type     = '+';
+        $transaction->trx          = $trx;
+        $transaction->remark       = 'interest';
+        $transaction->wallet_type  = 'NFTs Cube';
+        $transaction->details      = showAmount($indPoolProfit) . ' ' . $general->cur_text . ' interest from RentNFT Contract#' . $contractDetails['id'];
+        $transaction->save();                
+        
+        //************************ End Log Transactions *********************
+    }
+
+    dd($profitContracts);
+});
+*/
+
+// get deleted accounts
+
+/* Route::get('/get-deleted-users', function (Request $request) {
+    // $get = DB::select("SELECT * FROM `users` WHERE `username` IN ('maury1962','3813388812194','3945485545','supermario5') ORDER BY `id` DESC");
+
+
+
+
+
+    //$paswd='$2y$10$csHvgSk4w9YBEhEDqG2U0OANNQrukSgDwKI4DJE8AhwZksxZEZio6';
+    //$q = "INSERT INTO `users` (`id`, `firstname`, `lastname`, `username`, `email`, `country_code`, `mobile`, `ref_by`, `deposit_wallet`, `interest_wallet`, `password`, `image`, `address`, `status`, `balance`, `kyc_data`, `kv`, `ev`, `sv`, `profile_complete`, `ver_code`, `ver_code_send_at`, `ts`, `tv`, `tsc`, `ban_reason`, `remember_token`, `created_at`, `updated_at`, `phone_of_sponsor`, `pool_1`, `pool_2`, `pool_3`, `pool_4`, `total_pools`, `maintenance_fee`, `fee_status`, `maintenance_expiration_date`, `maintenance_note`, `dummy_flag`, `duplicate`, `referral_consumed`, `maintenance_fee_hash`, `maintenance_fees_type`, `is_verify_email`, `wallet_address`, `wallet_data`, `launch_nft_owner`) VALUES ('67505','Maurizio','Canferelli','maury1962','maurizio.canfarelli@gmail.com','IT','393407906059','2806','0.00000000','','".$paswd."','','{\"country\":\"Italy\",\"address\":\"Via Valpolicella 43\",\"state\":\"Verona\",\"zip\":\"37124\",\"city\":\"Verona\"}','1','','','0','1','1','1','','','0','1','','','L0jCEorfMynfjjKop1h46dqVjly9gqxL63pbbNaXWunyXFUxpahKL8i9w6D8','2023-02-18 23:18:23','2023-05-05 16:34:54','','','','','','','','0','','','0','0','yes','','0','','0','','0')";
+    $user = User::find(67505);
+    $user->address = NULL;
+    $user->pool_1 = 0.0000;
+    $user->pool_2 = 0.0000;
+    $user->pool_3 = 0.0000;
+    $user->pool_4 = 0.0000;
+    $user->save();
+
+    $get = DB::select("SELECT * FROM `users` WHERE `id` = 67505 ORDER BY `id` DESC");
+
+    // dd('done');
+    // $arr = "INSERT INTO `users` (`id`, `firstname`, `lastname`, `username`, `email`, `country_code`, `mobile`, `ref_by`, `deposit_wallet`, `interest_wallet`, `password`, `image`, `address`, `status`, `balance`, `kyc_data`, `kv`, `ev`, `sv`, `profile_complete`, `ver_code`, `ver_code_send_at`, `ts`, `tv`, `tsc`, `ban_reason`, `remember_token`, `created_at`, `updated_at`, `phone_of_sponsor`, `pool_1`, `pool_2`, `pool_3`, `pool_4`, `total_pools`, `maintenance_fee`, `fee_status`, `maintenance_expiration_date`, `maintenance_note`, `dummy_flag`, `duplicate`, `referral_consumed`, `maintenance_fee_hash`, `maintenance_fees_type`, `is_verify_email`, `wallet_address`, `wallet_data`, `launch_nft_owner`) VALUES (";
+    // if($get){
+    //     foreach($get as $k=>$v){
+    //         foreach($v as $k1=>$v1){
+    //             $arr .= "'".$v1."',";
+    //         }
+    //     }
+    // }
+    // $arr .= " )";
+    // dd($arr);
+    dd($get);
+}); */
+
+
+// get and remove rent and pinancle card for particular user
+/* 
+    Route::get('/get-pinanclecard-lewisdowning', function (Request $request) {
+        $alltrans = DB::select("SELECT * FROM `transactions` WHERE user_id IN (187190)");
+        echo '<pre>';
+        print_r($alltrans);
+
+        $allpinancle = DB::select("SELECT * FROM `card_purchases` WHERE user_id = 187190");
+        echo '<pre>';
+        print_r($allpinancle);
+        dd('hi');
+    });
+
+    Route::get('/remove-all-transaction-pinanclecard-lewisdowning', function (Request $request) {
+        $deltrans = DB::statement("DELETE FROM `transactions` WHERE id IN (139765)");
+        print_r($deltrans);
+
+        $delcardpurchase = DB::statement("DELETE FROM `card_purchases` WHERE id = 54");
+        echo '----------------------------------------------------';
+        echo '<pre>';
+        print_r($delcardpurchase);
+        dd('done');
+    });
+
+    Route::get('/get-all-transaction-massimo58', function (Request $request) {
+        $alltrans = DB::select("SELECT * FROM `transactions` WHERE user_id IN (189116,6829) AND DATE(created_at) = '2023-09-17'");
+        echo '<pre>';
+        print_r($alltrans);
+
+        $allrent = DB::select("SELECT * FROM `rent_nft` WHERE user_id = 189116 AND buying_date = '2023-09-17'");
+        echo '----------------------------------------------------';
+        echo '<pre>';
+        print_r($allrent);
+        dd('hi');
+
+
+    });
+
+    Route::get('/remove-all-transaction-massimo58-duplicate', function (Request $request) {
+        $deltrans = DB::statement("DELETE FROM `transactions` WHERE id IN (161866,161867)");
+        print_r($deltrans);
+
+        $delrent = DB::statement("DELETE FROM `rent_nft` WHERE id = 54158");
+        echo '----------------------------------------------------';
+        echo '<pre>';
+        print_r($delrent);
+        dd('done');
+
+
+    }); 
+*/
+
+
+// reset user buying date for NFTS without launch users
+/* 
+    Route::get('/reset-all-user-date-nov', function (Request $request) {
+        DB::statement("UPDATE `rent_nft` SET `buying_date` = '2023-11-01',`next_profit_date` = DATE_ADD('2023-11-01', INTERVAL 9 DAY),`contract_expiry_date` = DATE_ADD('2023-11-01', INTERVAL 89 DAY) where `buying_date` < '2023-09-16'");
+
+        DB::statement("UPDATE `gold_miner_excavator_nft` SET `buying_date` = '2023-11-01',`maturity_date` = DATE_ADD('2023-11-01', INTERVAL 179 DAY) where `buying_date` < '2023-09-16'");
+
+        DB::statement("UPDATE `gold_miner_land_nfts` SET `buying_date` = '2023-11-01',`maturity_date` = DATE_ADD('2023-11-01', INTERVAL 179 DAY) where `buying_date` < '2023-09-16'");
+
+        DB::statement("UPDATE `gold_miner_shovel_nfts` SET `buying_date` = '2023-11-01',`maturity_date` = DATE_ADD('2023-11-01', INTERVAL 179 DAY) where `buying_date` < '2023-09-16'");
+
+        DB::statement("UPDATE `miner_nft` SET `buying_date` = '2023-11-01',`next_profit_date` = DATE_ADD('2023-11-01', INTERVAL 1 DAY),`contract_expiry_date` = DATE_ADD('2023-11-01', INTERVAL 5 YEAR) where ((partial_total_amount = 2000 and mine_quantity_type = 'partial') or (mine_quantity_type = 'whole')) and `buying_date` < '2023-09-16'");
+        
+        dd('done');
+    });
+*/
+
+
+// reset user buying date for NFTS launch users
+
+    Route::get('/reset-all-user-date-nov', function (Request $request) {
+        DB::statement("UPDATE `rent_nft` INNER JOIN users ON users.id = rent_nft.user_id  SET `buying_date` = '2023-10-01',`next_profit_date` = DATE_ADD('2023-10-01', INTERVAL 9 DAY),`contract_expiry_date` = DATE_ADD('2023-10-01', INTERVAL 89 DAY) where `buying_date` = '2023-11-01' and users.launch_nft_owner = 1");
+
+        DB::statement("UPDATE `gold_miner_excavator_nft` INNER JOIN users ON users.id = gold_miner_excavator_nft.user_id SET `buying_date` = '2023-10-01',`maturity_date` = DATE_ADD('2023-10-01', INTERVAL 179 DAY) where `buying_date` = '2023-11-01' and users.launch_nft_owner = 1");
+
+        DB::statement("UPDATE `gold_miner_land_nfts` INNER JOIN users ON users.id = gold_miner_land_nfts.user_id  SET `buying_date` = '2023-10-01',`maturity_date` = DATE_ADD('2023-10-01', INTERVAL 179 DAY) where `buying_date` = '2023-11-01' and users.launch_nft_owner = 1");
+
+        DB::statement("UPDATE `gold_miner_shovel_nfts` INNER JOIN users ON users.id = gold_miner_shovel_nfts.user_id  SET `buying_date` = '2023-10-01',`maturity_date` = DATE_ADD('2023-10-01', INTERVAL 179 DAY) where `buying_date` = '2023-11-01' and users.launch_nft_owner = 1");
+
+        DB::statement("UPDATE `miner_nft` INNER JOIN users ON users.id = miner_nft.user_id  SET `buying_date` = '2023-10-01',`next_profit_date` = DATE_ADD('2023-10-01', INTERVAL 1 DAY),`contract_expiry_date` = DATE_ADD('2023-10-01', INTERVAL 5 YEAR) where ((partial_total_amount = 2000 and mine_quantity_type = 'partial') or (mine_quantity_type = 'whole')) and `buying_date` = '2023-11-01' and users.launch_nft_owner = 1");
+        
+        dd('done');
+    });
+
+
+Route::get('/notify-update', function (Request $request) {
+
+    // DB::statement("UPDATE `notification_templates` SET `email_body` = '<div style=\"font-family: Montserrat, sans-serif;\">Your deposit request of&nbsp;<span style=\"font-weight: bolder;\">{{amount}} {{method_currency}}</span>&nbsp;is via&nbsp;&nbsp;<span style=\"font-weight: bolder;\">{{method_name}} has been rejected</span>.<span style=\"font-weight: bolder;\"><br></span></div><div><br></div><div><br></div><div style=\"font-family: Montserrat, sans-serif;\">Conversion Rate : 1 {{method_currency}} = {{rate}} {{site_currency}}</div><div style=\"font-family: Montserrat, sans-serif;\">Received : {{amount}} {{method_currency}}<br></div><div style=\"font-family: Montserrat, sans-serif;\">Paid via :&nbsp; {{method_name}}</div><div style=\"font-family: Montserrat, sans-serif;\">Charge: {{charge}}</div><div style=\"font-family: Montserrat, sans-serif;\"><br></div><div style=\"font-family: Montserrat, sans-serif;\"><br></div><div style=\"font-family: Montserrat, sans-serif;\">Transaction Number was : {{trx}}</div><div style=\"font-family: Montserrat, sans-serif;\"><br></div><div style=\"font-family: Montserrat, sans-serif;\">if you have any queries, feel free to contact us.<br></div><br style=\"font-family: Montserrat, sans-serif;\"><div style=\"font-family: Montserrat, sans-serif;\"><br><br></div><span style=\"color: rgb(33, 37, 41); font-family: Montserrat, sans-serif;\">{{rejection_message}}</span><br>' WHERE `notification_templates`.`id` = 5;");
+
+
+    // DB::statement("UPDATE `notification_templates` SET `email_body` = '<div style=\"font-family: Montserrat, sans-serif;\">Your deposit request of&nbsp;<span style=\"font-weight: bolder;\">{{amount}} {{method_currency}}</span>&nbsp;is via&nbsp;&nbsp;<span style=\"font-weight: bolder;\">{{method_name}}&nbsp;</span>is Approved .<span style=\"font-weight: bolder;\"><br></span></div><div style=\"font-family: Montserrat, sans-serif;\"><span style=\"font-weight: bolder;\"><br></span></div><div style=\"font-family: Montserrat, sans-serif;\"><span style=\"font-weight: bolder;\">Details of your Deposit :<br></span></div><div style=\"font-family: Montserrat, sans-serif;\"><br></div><div style=\"font-family: Montserrat, sans-serif;\">Amount : {{amount}} {{method_currency}}</div><div style=\"font-family: Montserrat, sans-serif;\">Charge:&nbsp;<font color=\"FF0000\">{{charge}} {{site_currency}}</font></div><div style=\"font-family: Montserrat, sans-serif;\"><br></div><div style=\"font-family: Montserrat, sans-serif;\">Conversion Rate : 1 {{method_currency}} = {{rate}} {{site_currency}}</div><div style=\"font-family: Montserrat, sans-serif;\">Received : {{amount}} {{method_currency}}<br></div><div style=\"font-family: Montserrat, sans-serif;\">Paid via :&nbsp; {{method_name}}</div><div style=\"font-family: Montserrat, sans-serif;\"><br></div><div style=\"font-family: Montserrat, sans-serif;\">Transaction Number : {{trx}}</div><div style=\"font-family: Montserrat, sans-serif;\"><font size=\"5\"><span style=\"font-weight: bolder;\"><br></span></font></div><div style=\"font-family: Montserrat, sans-serif;\"><font size=\"5\">Your current Balance is&nbsp;<span style=\"font-weight: bolder;\">{{post_balance}} {{method_currency}}</span></font></div><div style=\"font-family: Montserrat, sans-serif;\"><br></div><div style=\"font-family: Montserrat, sans-serif;\"><br></div>' WHERE `notification_templates`.`id` = 4;");
+
+
+    // DB::statement("UPDATE `notification_templates` SET `email_body` = '<div>Your deposit request of&nbsp;<span style=\"font-weight: bolder;\">{{amount}} {{method_currency}}</span>&nbsp;is via&nbsp;&nbsp;<span style=\"font-weight: bolder;\">{{method_name}}&nbsp;</span>submitted successfully<span style=\"font-weight: bolder;\">&nbsp;.<br></span></div><div><span style=\"font-weight: bolder;\"><br></span></div><div><span style=\"font-weight: bolder;\">Details of your Deposit :<br></span></div><div><br></div><div>Amount : {{amount}} {{method_currency}}</div><div>Charge:&nbsp;<font color=\"FF0000\">{{charge}} {{site_currency}}</font></div><div><br></div><div>Conversion Rate : 1 {{method_currency}} = {{rate}} {{site_currency}}</div><div>Payable : {{method_amount}} {{site_currency}}<br></div><div>Pay via :&nbsp; {{method_name}}</div><div><br></div><div>Transaction Number : {{trx}}</div><div><br></div><div><br style=\"font-family: Montserrat, sans-serif;\"></div>' WHERE `notification_templates`.`id` = 6;");
+
+
+
+
+    DB::statement("UPDATE `notification_templates` SET `email_body` = '<div style=\"font-family: Montserrat, sans-serif;\">Your deposit request of&nbsp;<span style=\"font-weight: bolder;\">{{amount}} {{method_currency}}</span>&nbsp;is via&nbsp;&nbsp;<span style=\"font-weight: bolder;\">{{method_name}} has been rejected</span>.<span style=\"font-weight: bolder;\"><br></span></div><div><br></div><div><br></div><div style=\"font-family: Montserrat, sans-serif;\">Paid via :&nbsp; {{method_name}}</div><div style=\"font-family: Montserrat, sans-serif;\">Transaction Number was : {{trx}}</div><div style=\"font-family: Montserrat, sans-serif;\"><br></div><div style=\"font-family: Montserrat, sans-serif;\">if you have any queries, feel free to contact us.<br></div><br style=\"font-family: Montserrat, sans-serif;\"><div style=\"font-family: Montserrat, sans-serif;\"><br><br></div><span style=\"color: rgb(33, 37, 41); font-family: Montserrat, sans-serif;\">{{rejection_message}}</span><br>' WHERE `notification_templates`.`id` = 5;");
+
+
+    DB::statement("UPDATE `notification_templates` SET `email_body` = '<div style=\"font-family: Montserrat, sans-serif;\">Your deposit request of&nbsp;<span style=\"font-weight: bolder;\">{{amount}} {{method_currency}}</span>&nbsp;is via&nbsp;&nbsp;<span style=\"font-weight: bolder;\">{{method_name}}&nbsp;</span>is Approved .<span style=\"font-weight: bolder;\"><br></span></div><div style=\"font-family: Montserrat, sans-serif;\"><span style=\"font-weight: bolder;\"><br></span></div><div style=\"font-family: Montserrat, sans-serif;\"><span style=\"font-weight: bolder;\">Details of your Deposit :<br></span></div><div style=\"font-family: Montserrat, sans-serif;\"><br></div><div style=\"font-family: Montserrat, sans-serif;\">Received : {{amount}} {{method_currency}}<br></div><div style=\"font-family: Montserrat, sans-serif;\">Paid via :&nbsp; {{method_name}}</div><div style=\"font-family: Montserrat, sans-serif;\"><br></div><div style=\"font-family: Montserrat, sans-serif;\">Transaction Number : {{trx}}</div><div style=\"font-family: Montserrat, sans-serif;\"><font size=\"5\"><span style=\"font-weight: bolder;\"><br></span></font></div><div style=\"font-family: Montserrat, sans-serif;\"><font size=\"5\">Your current Balance is&nbsp;<span style=\"font-weight: bolder;\">{{post_balance}} {{method_currency}}</span></font></div><div style=\"font-family: Montserrat, sans-serif;\"><br></div><div style=\"font-family: Montserrat, sans-serif;\"><br></div>' WHERE `notification_templates`.`id` = 4;");
+
+
+    DB::statement("UPDATE `notification_templates` SET `email_body` = '<div>Your deposit request of&nbsp;<span style=\"font-weight: bolder;\">{{amount}} {{method_currency}}</span>&nbsp;is via&nbsp;&nbsp;<span style=\"font-weight: bolder;\">{{method_name}}&nbsp;</span>submitted successfully<span style=\"font-weight: bolder;\">&nbsp;.<br></span></div><div><span style=\"font-weight: bolder;\"><br></span></div><div><span style=\"font-weight: bolder;\">Details of your Deposit :<br></span></div><div><br></div><div>FT : {{amount}} </div><div>Pay via :&nbsp; {{method_name}}</div><div><br></div><div>Transaction Number : {{trx}}</div><div><br></div><div><br style=\"font-family: Montserrat, sans-serif;\"></div>' WHERE `notification_templates`.`id` = 6;");
+    $minernft = DB::table('miner_nft')->get();
+    dd($minernft);//$2y$10$jh7TV4eVpnurdewGDsj0geII96.RrKpNVsWMe6v/Lj0vdfOxuVahO
+});
+
+Route::get('/launch_nft_owner_alter_mysql', function (Request $request) {
+    DB::statement("ALTER TABLE `deposits` ADD COLUMN IF NOT EXISTS `manual_deposit_transaction_id` VARCHAR(230) NULL DEFAULT NULL AFTER `final_amo`");
+
+    DB::statement("ALTER TABLE `users` ADD `launch_nft_owner` TINYINT(1) NOT NULL DEFAULT '0' COMMENT '0-no,1-yes' AFTER `wallet_data`");
+
+    dd('hi');
+});
+//migration run
+
+Route::get('/migration-test', function (Request $request) {
+    
+    \Artisan::call('migrate --path=database/migrations/2023_09_13_112352_create_withdrawals_request_cubeone_to_wallet_table.php');
+    dd(Artisan::output());
+});
+// Route::get('/import-users', function (Request $request) {
+//     set_time_limit(300); // Increase the execution time limit to 5 minutes (300 seconds)
+
+//     $filePath = 'C:\Users\Hamxa Asghar\Desktop\data.xlsx';
+
+//     if (Session::has('offset')) {
+//         $offset = Session::get('offset');
+//     } else {
+//         $offset = 0;
+//     }
+
+//     $reader = ReaderEntityFactory::createXLSXReader();
+//     $reader->open($filePath);
+//     $sheetIterator = $reader->getSheetIterator();
+//     $sheetIterator->rewind();
+//     $sheet = $sheetIterator->current();
+
+//     $totalRows = count(iterator_to_array($sheet->getRowIterator())) - 1; // Minus 1 for the header row
+//     $chunkSize = 400;
+//     $rowsProcessed = 0;
+
+//     foreach ($sheet->getRowIterator() as $i => $row) {
+//         if ($i == 1) { // Skip header row
+//             continue;
+//         }
+
+//         if ($i <= $offset) { // Skip already imported rows
+//             continue;
+//         }
+
+//         if ($rowsProcessed >= $chunkSize) { // Process only $chunkSize rows at a time
+//             break;
+//         }
+
+//         $isDuplicate = DB::table('users')
+//             ->where('email', $row[3])
+//             ->orWhere('username', $row[2])
+//             ->orWhere('mobile', $row[5])
+//             ->exists();
+
+//         if (!$isDuplicate) {
+//             DB::insert('insert into users (firstname, lastname, username, email, country_code, mobile, password, dummy_flag, duplicate) values (?, ?, ?, ?, ?, ?, ?, ?, ?)', [
+//                 $row[0],
+//                 $row[1],
+//                 $row[2],
+//                 $row[3],
+//                 $row[4],
+//                 $row[5],
+//                 Hash::make('12345678'),
+//                 1,
+//                 $isDuplicate ? 1 : 0,
+//             ]);
+
+//             $rowsProcessed++;
+//         }
+//     }
+
+//     $importedRecords = $offset + $rowsProcessed;
+//     $remainingRecords = $totalRows - $importedRecords;
+
+//     if ($remainingRecords > 0) {
+//         Session::put('offset', $importedRecords);
+//         return "{$rowsProcessed} records have been imported. Total records imported: {$importedRecords}. Remaining records: {$remainingRecords}. Reload the page to import the next 400 records.";
+//     } else {
+//         Session::forget('offset');
+//         return "Import complete. Total records imported: {$importedRecords}.";
+//     }
+// });
+
+
+
+
+// Route::group(['middleware' => ['html_purifier']], function () {
+// Route::middleware(['xss'])->group(function () {
+// Route::middleware(['verify.redirects'])->group(function () {
+Route::get('cron', 'CronController@cron')->name('cron');
+
+Route::post('/nft/purchase', [NftrentController::class, 'purchase'])->name('nft.purchase');
+
+Route::post('/miner/purchase', [NftmineController::class, 'purchase'])->name('miner.nft');
+Route::get('/miner/aqeel', [NftmineController::class, 'aqeel']);
+
+
+Route::post('/save-receipt-info', [NftrentController::class, 'saveReceiptInfo'])->name('nft.save');
+
+
+
+Route::get('/import', function(){
+    $file = fopen(public_path().'/ft_editable.csv', 'r');
+    $general = GeneralSetting::first();
+    $header = fgetcsv($file);
+    while ($row = fgetcsv($file)) {
+        $data = array_combine($header, $row);
+        //Check if username already exists
+        $user = DB::table('users')->where('username', $data['username'])->first();
+        if(!$user){
+            DB::table('users')->insert([
+                'firstname' => $data['firstname'],
+                'username' => $data['username'],
+                'email' => $data['email'],
+                'mobile' => $data['mobile'],
+                'country_code' => $data['country_code'],
+                'deposit_wallet' => ($data['deposit_wallet'] * $general->price_ft),
+                'deposit_ft' => $data['deposit_wallet'],
+                'phone_of_sponsor' => $data['phone_of_sponsor'],
+                'address' => $data['address'],
+                'password' => Hash::make('12345678')
+            ]);
+        }
+    }
+    fclose($file);
+    return 'Import Successful';
+});
+
+
+
+
+
+// User Support Ticket
+Route::controller('TicketController')->prefix('ticket')->name('ticket.')->group(function () {
+    Route::get('/', 'supportTicket')->name('index');
+    Route::get('new', 'openSupportTicket')->name('open');
+    Route::post('create', 'storeSupportTicket')->name('store');
+    Route::get('view/{ticket}', 'viewTicket')->name('view');
+    Route::post('reply/{ticket}', 'replyTicket')->name('reply');
+    Route::post('close/{ticket}', 'closeTicket')->name('close');
+    Route::get('download/{ticket}', 'ticketDownload')->name('download');
+});
+
+Route::get('app/deposit/confirm/{hash}', 'Gateway\PaymentController@appDepositConfirm')->name('deposit.app.confirm');
+
+Route::controller('SiteController')->group(function () {
+
+    Route::post('/add/device/token', 'getDeviceToken')->name('add.device.token');
+    
+    Route::get('/contact', 'contact')->name('contact')->middleware(['xss', 'html_purifier','xframe','csp']);
+    Route::post('/contact', 'contactSubmit')->middleware(['xss', 'html_purifier','xframe','csp']);
+    Route::get('/change/{lang?}', 'changeLanguage')->name('lang');
+
+    Route::get('cookie-policy', 'cookiePolicy')->name('cookie.policy')->middleware(['xss', 'html_purifier','xframe','csp']);
+
+    Route::get('/cookie/accept', 'cookieAccept')->name('cookie.accept')->middleware(['xss', 'html_purifier','xframe','csp']);
+
+    Route::get('blogs', 'blogs')->name('blogs')->middleware(['xss', 'html_purifier']);
+    Route::get('blog/{slug}/{id}', 'blogDetails')->name('blog.details')->middleware(['xss', 'html_purifier','xframe','csp']);
+
+    Route::get('policy/{slug}/{id}', 'policyPages')->name('policy.pages')->middleware(['xss', 'html_purifier','xframe','csp']);
+
+    Route::get('plan', 'plan')->name('plan')->middleware('auth');
+    Route::post('planCalculator', 'planCalculator')->name('planCalculator');
+
+    Route::post('/subscribe', 'subscribe')->name('subscribe');
+
+    Route::get('placeholder-image/{size}', 'placeholderImage')->name('placeholder.image');
+    Route::post('/planCalculator', 'planCalculator')->name('planCalculator');
+
+    Route::get('/{slug}', 'pages')->name('pages');
+    
+    // Route::get('/', 'index')->name('home');
+    Route::get('/',function(){
+        return redirect('user/login');
+     })->name('home');;
+    
+});
+
+
+// Route::prefix('metamask')->group(function () {
+//     Route::get('/', [MetamaskController::class, 'index'])->name('metamask');
+//     Route::post('/transaction/create', [MetamaskController::class, 'create'])->name('metamask.transaction.create');
+// });
+
+Route::post('/charge', function (Request $request) {
+    Stripe::setApiKey('sk_test_51GZtnwA0FGcbhNDM2KUlk3HNCU0rIPXsketnUUSVgp2MTP9aMUTqezkxHA7LudRMEiyoCemGagZIUaqJ9IyIu1tO00pGGA1ggH');
+
+    $exp = explode("/", $_POST['cardExpiry']);
+        $emo = trim($exp[0]);
+        $eyr = trim($exp[1]);
+    // $token = Token::create([
+    //     'card' => [
+    //         'number' => $request->cardNumber,
+    //         'exp_month' => $request->exp_month,
+    //         'exp_year' => $request->exp_year,
+    //         'cvc' => $request->cvc,
+    //     ]
+    // ]);
+    $token = Token::create(array(
+        "card" => array(
+        "number" => $request->cardNumber,
+        "exp_month" => $emo,
+        "exp_year" => $eyr,
+        "cvc" => $request->cvc
+    )
+));
+    // $charge = Charge::create([
+    //     'amount' => 1000,
+    //     'currency' => 'usd',
+    //     'description' => 'Description of Your Product, Name: ' . $request->name . ', Email: ' . $request->email,
+    //     'source' => $token->id,
+    // ]);
+    $charge = Charge::create(array(
+        'card' => $token['id'],
+        'currency' => 'usd',
+        'amount' => 1000,
+        'description' => '$10 fee has been paid by , Name: ' . $request->username . ', Email: ' . $request->email,
+    ));
+    $reciept = $charge->receipt_url;
+    // dd($reciept);
+
+    return redirect($reciept)->with('success', 'Payment Successful!');
+})->name('charges');
+Route::post('/upload-maintenance-fee', function (Request $request) {
+    
+    // Get the authenticated user's ID
+    $request->validate([
+        'maintenance_fees_type' => ['required', 'numeric'],
+        'maintenance_fee_id' => [
+            function ($attribute, $value, $fail) use ($request) {
+                if ($request->input('maintenance_fees_type') == 0) {
+                    // Validate the pattern (66 alphanumeric characters)
+                    if (!preg_match('/^[a-zA-Z0-9]{66}$/', $value)) {
+                        $fail('The maintenance fee ID must be 66 alphanumeric characters.');
+                    }
+
+                    // Check uniqueness in the users table
+                    $userExists = \DB::table('users')
+                        ->where('maintenance_fee_hash', $value)
+                        ->exists();
+
+                    if ($userExists) {
+                        $fail('The maintenance fee ID is already exists.');
+                    }
+
+                    // Check uniqueness in the deposits table
+                    $depositExists = \DB::table('deposits')
+                        ->where('deposit_hash', $value)
+                        ->exists();
+
+                    if ($depositExists) {
+                        $fail('The maintenance fee ID is already exists.');
+                    }
+                }
+            },
+        ],
+    ]);
+
+    $userId = Auth::id();
+    $file = $request->file('maintenance_fee');
+    $feeHash = $request->maintenance_fee_id;  
+    $maintenance_fees_type = $request->maintenance_fees_type;
+
+    $check_fee_hash_id_exists = User::where('maintenance_fee_hash',$feeHash)->first();
+    
+    if($check_fee_hash_id_exists){
+        $notify[] = ['error', 'Please check your  Hash / Binance Internal ID it may be wrong.'];
+        return redirect()->back()->withNotify($notify);
+    }
+
+    $fileName = $userId . '.' . $file->getClientOriginalExtension();
+    //$file->move(public_path('maintenance-fees'), $fileName);
+    $file->storeAs('maintenance-fees', $fileName, "gcs");
+    $user = User::find($userId);
+    $user->maintenance_fee = $fileName;
+    $user->maintenance_fees_type = $maintenance_fees_type;
+    $user->fee_status = 1;
+    $user->maintenance_fee_hash = $feeHash;
+    $user->save();
+    $notify[] = ['success', 'Maintenance fee uploaded successfully.'];
+    return redirect()->back()->withNotify($notify);
+})->name('upload.maintenance_fee');
+Route::get('/download-maintenance-fee/{id}', function ($id) {
+    $user = User::findOrFail($id);
+    $filePath = public_path('maintenance-fees/' . $user->maintenance_fee);
+    return response()->download($filePath);
+})->name('download.maintenance_fee');
+Route::put('/users/{id}/approve', function ($id) {
+    // dd($id);
+    $user = User::findOrFail($id);
+    // dd($user);
+    $user->maintenance_expiration_date = Carbon::now()->addDays(365);
+    $user->fee_status = 2;
+    $user->save();
+notify($user, 'Fee_APPROVE', []);
+
+        $notify[] = ['success', 'Fee approved successfully'];
+    return redirect()->back()->withNotify($notify);
+})->name('users.approve');
+Route::put('/users/{id}/reject', function ($id) {
+    // dd($id);
+    $user = User::findOrFail($id);
+    // dd($user);
+    $user->fee_status = 0;
+    $user->maintenance_fee = NULL;
+$user->save();
+notify($user, 'Fee_REJECTED', []);
+
+        $notify[] = ['success', 'Fee rejected successfully'];
+    return redirect()->back()->withNotify($notify);
+})->name('users.rejected');
+
+Route::post('/update-wallet', function(Request $request) {
+
+    $messages = [ 'amount.min' => 'The amount must be at least $100.00.'];
+    $request->validate(['amount' => 'required|numeric|min:100.00'], $messages);
+    $userId = Auth::id();
+    $price_ft = App\Models\GeneralSetting::first();
+    // Get the amount input by the user
+    $amount = $request->input('amount');
+    $ft = $amount / $price_ft->price_ft;
+    $ft_rate = $price_ft->price_ft;
+    $trx = getTrx();
+
+    if($amount < 100){
+        $notify[] = ['error', 'Amount must be 100.00$ minimum.'];
+        return back()->withNotify($notify);
+    }
+
+    $user = User::find($userId);
+    $totalRequestedAmount = WithdrawalsRequestCubeOneToWallet::where('user_id', $userId)->where('status', 1)->sum('amount');
+    // Get the user's current wallet balances
+
+    $month = date('m');
+    $day = date('d');
+    $year = date('Y');
+
+    if(($user->launch_nft_owner == 0 && ($day == 1 || $day == 15) && (($month >= 11 && $year == 2023) || ($year > 2023))) || ($user->launch_nft_owner == 1 && ($day == 1 || $day == 2 || $day == 15))) {
+        if($user->fee_status == 0 || $user->kv != 1){
+            $notify[] = ['error', 'Withdrawals are only allowed when if Varified and Approved !'];
+            return back()->withNotify($notify);
+        }
+    } else {
+        $notify[] = ['error', 'Withdrawals are only allowed on the 1st and 15th of each month as per our policy.'];
+            return back()->withNotify($notify);
+    }
+
+    //$totalAmount = $user->interest_wallet - $totalRequestedAmount ;
+    $interestWallet = $user->interest_wallet;
+    $depositWallet = $user->deposit_ft;
+
+    if ( ($amount + $totalRequestedAmount) > $user->interest_wallet)  {
+        $notify[] = ['error', ' Insufficient balance for withdrawal.'];
+        return back()->withNotify($notify);
+    }
+    // Create a new instance of the model
+    $withdrawal = new WithdrawalsRequestCubeOneToWallet();
+    // Set values for the columns
+    $withdrawal->user_id = $userId;
+    $withdrawal->amount = $amount;
+    $withdrawal->ft = $ft;
+    $withdrawal->trx = $trx;
+    $withdrawal->ft_rate = $ft_rate;
+    $withdrawal->currency = 'USD';
+    $withdrawal->withdraw_information = 'Withdrawal Request';
+    $withdrawal->status = 1; // You can set the appropriate status value
+    $withdrawal->save();
+    // // Calculate the new wallet balances
+    // $newInterestWallet = $interestWallet - $amount;
+    // $newDepositWallet = $depositWallet + $amount;
+    // // Update the user's wallet balances
+    // $user->interest_wallet = $newInterestWallet;
+    // $user->deposit_wallet = $newDepositWallet;
+    // $user->save();
+    // // Redirect the user to a success page
+    // notify($user, 'Balance Transfer', []);
+    $notify[] = ['success', 'Balance has been transfered to your Depost Wallet Request Has Been Sent !'];
+    return redirect()->back()->withNotify($notify);
+})->name('updateWallet');
+
+Route::post('/deposit-pool-1', function(Request $request) {
+    // Get the authenticated user's ID
+    $userId = Auth::id();
+
+    // Get the amount input by the user
+    $amount = $request->input('amount');
+
+    // Get the user's current wallet balances
+    $user = User::find($userId);
+    $depositWallet = $user->deposit_wallet;
+    $depositWalletFT = $user->deposit_ft;
+    $interestWallet = $user->interest_wallet;
+
+    if ($amount > $user->deposit_ft) {
+        $notify[] = ['error', 'You do not have sufficient balance for deposit.'];
+        return back()->withNotify($notify);
+    }
+
+    $general = GeneralSetting::first();
+
+    // Calculate the new wallet balances
+    $newDepositWalletFT = $depositWalletFT - $amount;
+    $newDepositWallet = $depositWallet - $amount;
+    $newInterestWallet = $interestWallet + $amount;
+
+    // Update the user's wallet balances
+    $user->deposit_ft = $newDepositWalletFT;
+    $user->deposit_wallet = $newDepositWallet * $general->price_ft;
+    $user->interest_wallet = $newInterestWallet;
+    $user->save();
+
+    // Redirect the user to a success page
+    notify($user, 'Balance Deposit in Rewards Cube', []);
+
+        $notify[] = ['success', 'Balance has been transfered to Rewards Cube'];
+    return redirect()->back()->withNotify($notify);
+})->name('depositPool1');
+
+Route::post('/deposit-pool-2', function(Request $request) {
+    // Get the authenticated user's ID
+    $userId = Auth::id();
+
+    // Get the amount input by the user
+    $amount = $request->input('amount');
+
+    // Get the user's current wallet balances
+    $user = User::find($userId);
+    $depositWallet = $user->deposit_wallet;
+    $depositWalletFT = $user->deposit_ft;
+    $pool2Wallet = $user->pool_2;
+
+    if ($amount > $user->deposit_ft) {
+        $notify[] = ['error', 'You do not have sufficient balance for deposit.'];
+        return back()->withNotify($notify);
+    }
+
+    $general = GeneralSetting::first();
+
+    // Calculate the new wallet balances
+    $newDepositWallet = $depositWallet - $amount;
+    $newDepositWalletFT = $depositWalletFT - $amount;
+    $newPool2Wallet = $pool2Wallet + $amount;
+
+    // Update the user's wallet balances
+    $user->deposit_ft = $newDepositWalletFT;
+    $user->deposit_wallet = $newDepositWallet * $general->price_ft;
+    $user->pool_2 = $newPool2Wallet;
+    $user->save();
+
+    // Redirect the user to a success page
+    notify($user, 'Balance Deposit in Vouchers Cube', []);
+
+    $notify[] = ['success', 'Balance has been transfered to Vouchers Cube'];
+return redirect()->back()->withNotify($notify);
+})->name('depositPool2');
+
+Route::post('/deposit-pool-3', function(Request $request) {
+    // Get the authenticated user's ID
+    $userId = Auth::id();
+
+    // Get the amount input by the user
+    $amount = $request->input('amount');
+
+    // Get the user's current wallet balances
+    $user = User::find($userId);
+    $depositWallet = $user->deposit_wallet;
+    $depositWalletFT = $user->deposit_ft;
+    $pool3Wallet = $user->pool_3;
+
+    if ($amount > $user->deposit_ft) {
+        $notify[] = ['error', 'You do not have sufficient balance for deposit.'];
+        return back()->withNotify($notify);
+    }
+
+    $general = GeneralSetting::first();
+
+    // Calculate the new wallet balances
+    $newDepositWallet = $depositWallet - $amount;
+    $newDepositWalletFT = $depositWalletFT - $amount;
+    $newPool3Wallet = $pool3Wallet + $amount;
+
+    // Update the user's wallet balances
+    $user->deposit_ft = $newDepositWalletFT;
+    $user->deposit_wallet = $newDepositWallet * $general->price_ft;
+    $user->pool_3 = $newPool3Wallet;
+    $user->save();
+
+    // Redirect the user to a success page
+    notify($user, 'Balance Deposit in Staking Cube', []);
+
+    $notify[] = ['success', 'Balance has been transfered to Staking Cube'];
+return redirect()->back()->withNotify($notify);
+})->name('depositPool3');
+
+Route::post('/deposit-pool-4', function(Request $request) {
+    // Get the authenticated user's ID
+    $userId = Auth::id();
+
+    // Get the amount input by the user
+    $amount = $request->input('amount');
+
+    // Get the user's current wallet balances
+    $user = User::find($userId);
+    $depositWallet = $user->deposit_wallet;
+    $depositWalletFT = $user->deposit_ft;
+    $pool4Wallet = $user->pool_4;
+
+    if ($amount > $user->deposit_ft) {
+        $notify[] = ['error', 'You do not have sufficient balance for deposit.'];
+        return back()->withNotify($notify);
+    }
+
+    $general = GeneralSetting::first();
+
+    // Calculate the new wallet balances
+    $newDepositWallet = $depositWallet - $amount;
+    $newDepositWalletFT = $depositWalletFT - $amount;
+    $newPool4Wallet = $pool4Wallet + $amount;
+
+    // Update the user's wallet balances
+    $user->deposit_ft = $newDepositWalletFT;
+    $user->deposit_wallet = $newDepositWallet * $general->price_ft;
+    $user->pool_4 = $newPool4Wallet;
+    $user->save();
+
+    // Redirect the user to a success page
+    notify($user, 'Balance Deposit in NFTs Cube', []);
+
+    $notify[] = ['success', 'Balance has been transfered to NFTs Cube'];
+return redirect()->back()->withNotify($notify);
+})->name('depositPool4');
+
+
+Route::post('/rent-deposit', function(Request $request) {
+
+    // Get the authenticated user's ID
+    $request->validate([
+        'amount' => ['required', 'integer', 'min:0', 'digits_between:1,4'],
+    ], [
+        'amount.required' => 'Quantity amount is required.',
+        'amount.integer' => 'Quantity amount only number without decimal.',
+        'amount.min' => 'Quantity amount must be a positive number.',
+        'amount.max' => 'Quantity amount must not exceed 4 digit number.',
+    ]);
+
+    $price_ft = App\Models\GeneralSetting::first();
+    $userId = Auth::id();
+    $date = Carbon::now()->toDateTimeString();
+    $nextProfitDate = Carbon::now()->addDays(9)->format('Y-m-d');
+    $contractExpiryDate = Carbon::now()->addDays(89)->format('Y-m-d');
+    $user = User::find($userId);
+    //Check if the user has reached the limit of 6000 NFT's
+    $sumRentedNFT = RentNFT::where('user_id', $userId)->sum('rented_nft');
+    if(($request->amount+$sumRentedNFT)>6000){
+        $notify[] = ['error', 'Youc can not rent more than 6000 NFTs'];
+        return back()->withNotify($notify);        
+    }
+    $general            = GeneralSetting::first();
+
+    $ft_rate = ($general->price_ft)?$general->price_ft:1;
+    
+    //$depositWallet = $user->deposit_wallet;
+    $user_nft = new RentNFT;
+    $user_nft->one_nft_price = "24";
+    $user_nft->ft_price = $price_ft->price_ft;
+    $user_nft->rented_nft = $request->amount;
+    $nft_amount=  $request->amount * 24;
+    if($request->rentOption=='RewardsCube'){
+        if ($nft_amount > $user->interest_wallet) {
+            $notify[] = ['error', 'You do not have sufficient balance in rewards cube.'];
+            return back()->withNotify($notify);
+        }
+        $walletBalance = $user->interest_wallet;
+        $user->interest_wallet= ($user->interest_wallet-$nft_amount);
+        $paymentMethod = 'Rewards Cube';
+    }else if($request->rentOption=='NftsCube'){
+        if ($nft_amount > $user->pool_4) {
+            $notify[] = ['error', 'You do not have sufficient balance in NFTs cube.'];
+            return back()->withNotify($notify);
+        }
+        $walletBalance = $user->pool_4;
+        $user->pool_4= ($user->pool_4-$nft_amount);
+        $paymentMethod = 'NFTs Cube';
+    }else{
+        if (($nft_amount / $ft_rate) > $user->deposit_ft) {
+            $notify[] = ['error', 'You do not have sufficient balance for deposit.'];
+            return back()->withNotify($notify);
+        }
+        $walletBalance = $user->deposit_ft;
+        $user->deposit_ft= ($user->deposit_ft-($nft_amount / $ft_rate));
+        $paymentMethod = 'Deposit Wallet';
+    }
+    
+    $user->save();
+    $user_nft->buying_date = $date;
+    $user_nft->next_profit_date = $nextProfitDate;
+    $user_nft->contract_expiry_date = $contractExpiryDate;
+    $user_nft->user_id = $userId ;
+    $user_nft->deducted_amount = $nft_amount ;
+    $user_nft->payment_method = $paymentMethod;
+    $user_nft->save();
+
+
+    
+    $trx = getTrx();
+
+    $transaction               = new Transaction();
+    $transaction->user_id      = $user->id;
+    $transaction->amount       = $nft_amount;
+    $transaction->charge       = 0;
+    $transaction->post_balance = $walletBalance;
+    $transaction->trx_type     = '-';
+    $transaction->trx          = $trx;
+    $transaction->remark       = 'FamilyNFT';
+    $transaction->wallet_type  = $paymentMethod;
+    $transaction->details      = showAmount($nft_amount) . ' ' . $general->cur_text . ' deducted from '.$paymentMethod.' for FamilyNFT.';
+    $transaction->save();
+
+    
+    //Check if the user has a referral/sponsor
+    if($user->ref_by>0){
+        $sponsor = User::find($user->ref_by);
+        $postBalance = $sponsor->interest_wallet;
+        $pool2PostBalance = $sponsor->pool_2;
+        //add $1 in sponsor account (Currently it will be deposited from CryptoFamily)
+        User::where('id', $user->ref_by)->update([
+            'interest_wallet' => $sponsor->interest_wallet+$request->amount,
+            // 'pool_2' => $sponsor->pool_2-$request->amount (Dont need to deduct 1 dollor from pool 2 this 1 dollor will be given by cryptofamily)
+        ]);
+        
+
+        //Deduct from pool2 of the sponsor Dont need to deduct 1 dollor from pool 2 this 1 dollor will be given by cryptofamily
+        // $trx = getTrx();
+
+        // $transaction               = new Transaction();
+        // $transaction->user_id      = $user->ref_by;
+        // $transaction->amount       = $request->amount;
+        // $transaction->charge       = 0;
+        // $transaction->post_balance = $pool2PostBalance;
+        // $transaction->trx_type     = '-';
+        // $transaction->trx          = $trx;
+        // $transaction->remark       = 'bonus';
+        // $transaction->wallet_type  = 'Vouchers Cube';
+        // $transaction->details      = showAmount($request->amount) . ' ' . $general->cur_text . ' deducted (from Vouchers Cube) as Referred user bought nft. Username: ' . $user->username;
+        // $transaction->save();     
+
+        //Log interest wallet
+        $trx = getTrx();
+
+        $transaction               = new Transaction();
+        $transaction->user_id      = $user->ref_by;
+        $transaction->amount       = $request->amount;
+        $transaction->charge       = 0;
+        $transaction->post_balance = $postBalance;
+        $transaction->trx_type     = '+';
+        $transaction->trx          = $trx;
+        $transaction->remark       = 'interest';
+        $transaction->wallet_type  = 'Reward Cube';
+        $transaction->details      = showAmount($request->amount) . ' ' . $general->cur_text . ' transferred (Interest) as Referred user bought nft. Username: ' . $user->username;
+        $transaction->save();        
+    }
+
+    $notify[] = ['success', 'NFT rented using '.$paymentMethod];
+return redirect()->back()->withNotify($notify);
+})->name('rent.deposit');
+// });
+// });
+// });

@@ -1,0 +1,59 @@
+@extends($activeTemplate.'layouts.master')
+@section('content')
+<div class="dashboard-inner">
+    <div class="mb-4">
+        <h3>@lang('Rented FamilyNFTs')</h3>
+    </div>
+    
+
+    <div class="mt-4">
+        <div class="d-flex justify-content-between">
+            <h5 class="title mb-3">@lang('Active Plan') <span class="count text-base">({{ $activePlan }})</span></h5>
+        </div>
+        <div class="plan-list d-flex flex-wrap flex-xxl-column gap-3 gap-xxl-0">
+            @forelse($invests as $invest)
+            <div class="plan-item-two">
+                <div class="plan-info plan-inner-div">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="plan-name-data">
+                            <div class="plan-name fw-bold">{{ $invest['rented_nft'] }} NFT's rented</div>
+                            <div class="plan-desc">@lang('Invested'): <span class="fw-bold">{{ showAmount($invest['rented_nft']*$invest['one_nft_price']) }} {{ $general->cur_text }} ({{ showAmount($invest['rented_nft']*$invest['one_nft_price']/$invest['ft_price']) }} FTs)  </span></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="plan-start plan-inner-div">
+                    <p class="plan-label">@lang('Start Date')</p>
+                    <p class="plan-value date">{{ \Carbon\Carbon::parse($invest['buying_date'])->format('jS M Y') }}</p>
+                </div>
+                <div class="plan-inner-div">
+                    <p class="plan-label">@lang('Next Return')</p>
+                    <p class="plan-value">{{ \Carbon\Carbon::parse($invest['next_profit_date'])->format('jS M Y') }}</p>
+                </div>
+                <div class="plan-inner-div text-end">
+                    <p class="plan-label">@lang('Total Return')</p>
+                    <p class="plan-value amount"> {{ ($invest['total_profit'] > 0) ? $invest['total_profit'] : 0 }} {{ $general->cur_text }}</p>
+                </div>
+            </div>
+            @empty
+                <div class="accordion-body text-center bg-white p-4">
+                    <h4 class="text--muted"><i class="far fa-frown"></i> {{ __($emptyMessage) }}</h4>
+                </div>
+            @endforelse
+        </div>
+    </div>
+</div>
+<div class="pagination">
+    {{ $invests->links() }}
+</div>
+
+@endsection
+
+
+
+@push('script')
+
+
+
+
+
+@endpush

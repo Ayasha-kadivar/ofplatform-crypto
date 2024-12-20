@@ -1,0 +1,262 @@
+{
+	"banner": {
+		"builder": true,
+		"no_selection": true,
+		"name": "Banner Content",
+		"content": {
+			"images": {
+				"image": {
+					"size": "700x500"
+				}
+			},
+			"heading": "text",
+			"button_name": "text",
+			"button_link": "text"
+		}
+	},
+	"affiliate": {
+		"builder": true,
+		"name": "Affiliate Program",
+		"content": {
+			"heading": "text",
+			"sub_heading": "text"
+		},
+		"element": {
+			"level": "text",
+			"commission": "text",
+			"modal": true
+		}
+	},
+	"top_investor": {
+		"builder": true,
+		"name": "Top Investor Section",
+		"content": {
+			"heading": "text",
+			"sub_heading": "text"
+		}
+	},
+	"about": {
+		"builder": true,
+		"name": "About Us",
+		"content": {
+			"heading": "text",
+			"content": "text"
+		},
+		"element": {
+			"icon": "icon",
+			"number": "text",
+			"postfix": "text",
+			"title": "text",
+			"modal": true
+		}
+	},
+	"vision_mission": {
+		"builder": true,
+		"name": "Our Vision & Mission",
+		"element": {
+			"icon": "icon",
+			"title": "text",
+			"content": "text",
+			"modal": true
+		}
+	},
+	"why_choose": {
+		"builder": true,
+		"name": "Why Choose Us",
+		"content": {
+			"images": {
+				"image": {
+					"size": "610x370"
+				}
+			},
+			"heading": "text",
+			"sub_heading": "text"
+		},
+		"element": {
+			"title": "text",
+			"icon": "icon",
+			"content": "textarea",
+			"modal": true
+		}
+	},
+	"testimonial": {
+		"builder": true,
+		"name": "Testimonial Section",
+		"content": {
+			"heading": "text"
+		},
+		"element": {
+			"images": {
+				"image": {
+					"size": "75x75"
+				}
+			},
+			"author": "text",
+			"designation": "text",
+			"quote": "textarea",
+			"modal": true
+		}
+	},
+	"breadcrumb": {
+		"builder": true,
+		"no_selection": true,
+		"name": "Breadcrumb",
+		"content": {
+			"images": {
+				"image": {
+					"size": "435x435"
+				}
+			}
+		}
+	},
+	"plan": {
+		"builder": false,
+		"name": "Plan Section"
+	},
+	"social_icon": {
+		"builder": true,
+		"no_selection": true,
+		"name": "Social Icon",
+		"element": {
+			"icon": "icon",
+			"url": "text",
+			"modal": true
+		}
+	},
+	"preloader": {
+		"builder": true,
+		"name": "Preloader Section",
+		"content": {
+			"images": {
+				"image": {
+					"size": "110x110"
+				}
+			}
+		}
+	},
+	"calculation": {
+		"builder": false,
+		"name": "Calculation Section"
+	},
+	"transaction": {
+		"builder": true,
+		"name": "Transaction Section",
+		"content": {
+			"heading": "text",
+			"sub_heading": "text"
+		},
+		"element": {
+			"select": {
+				"name": "trx_type",
+				"options": {
+					"deposit": "Deposit",
+					"withdraw": "Withdraw"
+				}
+			},
+			"name": "text",
+			"date": "date",
+			"amount": "text",
+			"gateway": "text",
+			"modal": true
+		}
+	},
+	"how_work": {
+		"builder": true,
+		"name": "How Work",
+		"content": {
+			"heading": "text",
+			"sub_heading": "text"
+		},
+		"element": {
+			"title": "text",
+			"sub_title": "text",
+			"modal": true
+		}
+	},
+	"faq": {
+		"builder": true,
+		"name": "FAQ Section",
+		"element": {
+			"question": "text",
+			"answer": "textarea",
+			"modal": true
+		}
+	},
+	"blog": {
+		"builder": true,
+		"name": "Blog Section",
+		"content": {
+			"heading": "text",
+			"sub_heading": "text"
+		},
+		"element": {
+			"images": {
+				"image": {
+					"size": "800x640",
+					"thumb": "400x320"
+				}
+			},
+			"title": "text",
+			"description": "textarea-nic",
+			"modal": false
+		}
+	},
+	"policy_pages": {
+		"builder": true,
+		"no_selection": true,
+		"name": "Policy Pages",
+		"element": {
+			"title": "text",
+			"details": "textarea-nic",
+			"modal": false
+		}
+	},
+	"contact": {
+		"builder": true,
+		"no_selection": true,
+		"name": "Contact Us",
+		"content": {
+			"heading": "text",
+			"map_url": "text",
+			"support_email": "text"
+		},
+		"element": {
+			"icon": "icon",
+			"title": "text",
+			"content": "text",
+			"modal": true
+		}
+	},
+	"login": {
+		"builder": true,
+		"no_selection": true,
+		"name": "Login Page",
+		"content": {
+			"images": {
+				"image": {
+					"size": "660x640"
+				}
+			}
+		}
+	},
+	"register": {
+		"builder": true,
+		"no_selection": true,
+		"name": "Register Page",
+		"content": {
+			"images": {
+				"image": {
+					"size": "800x800"
+				}
+			}
+		}
+	},
+	"footer": {
+		"builder": true,
+		"no_selection": true,
+		"name": "Footer",
+		"content": {
+			"content": "text"
+		}
+	}
+}

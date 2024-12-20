@@ -1,0 +1,103 @@
+@extends($activeTemplate.'layouts.master')
+@section('content')
+<div class="dashboard-inner">
+    <div class="mb-4">
+        <h3>@lang('Rented FamilyNFTs')</h3>
+    </div>
+    
+
+    <div class="mt-4">
+        <div class="d-flex justify-content-between">
+            <h5 class="title mb-12"><div style="float:left">@lang('Total FamilyNFTs:- ') <span class="count text-base">{{ $total }}</span></div></h5>
+
+            <h5 class="title mb-12"><div style="float:left">@lang('Active:- ') <span class="count text-base">{{ $activePlan }}</span></div> <div style="float:right">&nbsp;&nbsp; @lang('Expired:- ') <span class="count text-base">{{ $expiredPlan }}</span></div></h5>
+        </div>
+        <div class="plan-list d-flex flex-wrap flex-xxl-column gap-3 gap-xxl-0">
+            @forelse($invests as $invest)
+            <div class="plan-item-two">
+                <div class="plan-info plan-inner-div">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="plan-name-data">
+                            <div class="plan-name fw-bold">{{ $invest['rented_nft'] }} NFT's rented</div>
+                            <div class="plan-desc">@lang('Invested'): <span class="fw-bold">{{ showAmount($invest['rented_nft']*$invest['one_nft_price']) }} {{ $general->cur_text }} ({{ showAmount($invest['rented_nft']*$invest['one_nft_price']/$invest['ft_price']) }} FTs)  </span></div>
+                            <div>
+                            @if($invest['contract_expiry_date'] < date("Y-m-d"))
+                                <span style="color:red;"><b>Expired</b></span>
+                            @endif
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="plan-start plan-inner-div">
+                    <p class="plan-label">@lang('Start Date')</p>
+                    <p class="plan-value date">{{ \Carbon\Carbon::parse($invest['buying_date'])->format('jS M Y') }}</p>
+                </div>
+                <div class="plan-inner-div">
+                    <p class="plan-label">@lang('Next Return')</p>
+                    <p class="plan-value">{{ \Carbon\Carbon::parse($invest['next_profit_date'])->format('jS M Y') }}</p>
+                </div>
+
+                @if(auth()->user()->vip_user==1)
+                <div class="plan-inner-div">
+                    <p class="plan-label">@lang('Auto Renewal')</p>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input our_check_input" type="checkbox" {{$invest['auto_renewal']==1?'checked':''}} data-minernft = "{{$invest['id']}}" role="switch" id="auto_renewal">
+                    </div>
+                </div>
+                
+                <div class="plan-inner-div">
+                    <p class="plan-label">@lang('Manual Renewal')</p>
+                    <p class="plan-value"><button class="manual_go" data-minernft = "{{$invest['id']}}" >Go</button></p>
+                </div>
+                @endif
+                <div class="plan-inner-div text-end">
+                    <p class="plan-label">@lang('Total Return')</p>
+                    <p class="plan-value amount"> {{ ($invest['total_profit'] > 0) ? $invest['total_profit'] : 0 }} {{ $general->cur_text }}</p>
+                </div>
+            </div>
+            @empty
+                <div class="accordion-body text-center bg-white p-4">
+                    <h4 class="text--muted"><i class="far fa-frown"></i> {{ __($emptyMessage) }}</h4>
+                </div>
+            @endforelse
+        </div>
+    </div>
+</div>
+<div class="pagination">
+    {{ $invests->links() }}
+</div>
+
+@endsection
+
+
+
+@push('script')
+
+<script>
+$('.our_check_input').click(function () {
+    //alert($(this).is(':checked'));
+
+    var auto_renewal = 0;
+    if($(this).is(':checked') == true){
+        auto_renewal = 1;
+    }
+    var nftid = $(this).attr('data-minernft');
+    $.post("/user/invest/update_auto_renewal", { "_token": "{{ csrf_token() }}",auto_renewal: auto_renewal,nftid: nftid}, function(result){
+        console.log(result);
+    });
+});
+
+$('.manual_go').click(function () {
+    var mnftid = $(this).attr('data-minernft');
+    if (confirm("Are you sure for manual renewal?") == true) {
+        $.post("/user/invest/update_manual_nft", { "_token": "{{ csrf_token() }}",mnftid: mnftid}, function(result){
+            if(!alert(result.message)){window.location.reload();}
+        });
+    }else{
+        return false;
+    }
+});
+</script>
+
+
+@endpush

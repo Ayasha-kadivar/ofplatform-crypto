@@ -1,0 +1,83 @@
+{
+    "policy_pages": {
+        "builder": true,
+        "no_selection":true,
+        "name": "Policy Pages",
+        "element": {
+            "title": "text",
+            "details": "textarea-nic",
+            "modal": false
+        }
+    },
+
+    "how_it_work":{
+        "builder":true,
+        "no_selection":true,
+        "name":"How It Work",
+        "content":{
+            "title":"text",
+            "subtitle":"text"
+        },
+        "element":{
+            "images":{
+                "image":{
+                    "size":"50x50"
+                }
+            },
+            "title":"text",
+            "content":"text",
+            "modal":true
+        }
+    },
+
+    "faq":{
+        "builder":true,
+        "no_selection":false,
+        "name":"FAQ",
+        "content":{
+            "title":"text"
+        },
+        "element":{
+            "question":"text",
+            "answer":"textarea",
+            "modal":true
+        }
+    },
+
+    "authentication":{
+        "builder":true,
+        "no_selection":true,
+        "name":"Authentication Pages",
+        "content":{
+            "register_title":"text",
+            "register_subtitle":"text",
+            "login_title":"text",
+            "login_subtitle":"text"
+        }
+    },
+
+    "contact":{
+        "builder":true,
+        "no_selection":true,
+        "name":"Contact",
+        "content":{
+            "title":"text",
+            "subtitle":"text"
+        },
+        "element":{
+            "icon":"icon",
+            "title":"text",
+            "content":"text",
+            "modal":true
+        }
+    },
+
+    "footer": {
+        "builder": true,
+        "no_selection":true,
+        "name": "Footer",
+        "content": {
+            "content": "textarea"
+        }
+    }
+}
