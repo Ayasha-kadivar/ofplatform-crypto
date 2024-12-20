@@ -58,7 +58,7 @@ window.addEventListener('load', async () => {
                     <small class="label-color-black">@lang('Deposit Wallet')</small> <br> <small class="label-color-green">{{ showAmount(auth()->user()->deposit_ft) }} <span class="currency--display--new--theme">FT</span></small>    
             </h4>
 
-            <h4 class="usd-balance text--base mb-2 fs--30"> <small class="label-color-black">@lang('Vesting Wallet')</small> <br> <small class="label-color-green">0.00 <span class="currency--display--new--theme">FT</span></small> </h4>
+            {{-- <h4 class="usd-balance text--base mb-2 fs--30"> <small class="label-color-black">@lang('Vesting Wallet')</small> <br> <small class="label-color-green">0.00 <span class="currency--display--new--theme">FT</span></small> </h4> --}}
 
             <h4 class="usd-balance text--base mb-2 fs--30"> <small class="label-color-black">@lang('Affiliate Rewards')</small> <br> <small class="label-color-green">{{ showAmount(auth()->user()->affiliate_reward )}} <span class="currency--display--new--theme">{{ $general->cur_text }}</span></small> </h4>
 
