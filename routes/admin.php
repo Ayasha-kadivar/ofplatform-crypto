@@ -28,6 +28,13 @@ Route::namespace ('Auth')->group(function () {
 });
 
 Route::middleware('admin')->group(function () {
+    Route::post('users/nft/{id}', 'ManageUsersController@removeFamilyNFT')->name('users.remove.familynft');
+    // Route::get('users/nft/{id}', 'ManageUsersController@showRemoveFamilyNFTForm')->name('admin.users.remove.familynft.form');
+    Route::get('/users/nft/{id}', 'ManageUsersController@showRemoveFamilyNFTForm')->name('admin.users.remove.familynft.form');
+    Route::post('admin/invest/update_auto_renewal', 'ManageUsersController@updateAutoRenewal')->name('admin.invest.update_auto_renewal');
+    Route::post('admin/invest/update_manual_nft', 'ManageUsersController@updateManualRenewal')->name('admin.invest.update_manual_nft');
+
+
     Route::controller('AdminController')->group(function () {
         Route::get('dashboard', 'dashboard')->name('dashboard');
         Route::get('profile', 'profile')->name('profile');

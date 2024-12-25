@@ -1188,6 +1188,79 @@ class ManageUsersController extends Controller
         return back()->withNotify($notify);
     }
 
+     public function showRemoveFamilyNFTForm($id)
+{
+    $pageTitle = 'Remove FamilyNFT';
+
+    // Retrieve the user and their NFTs
+    $user = User::findOrFail($id);
+    $familyNFTs = RentNFT::where('user_id', $id)->get();
+
+    // Calculate plans
+    $activePlan = $familyNFTs->filter(fn($nft) => $nft->contract_expiry_date > date("Y-m-d"))->sum('rented_nft');
+    $expiredPlan = $familyNFTs->filter(fn($nft) => $nft->contract_expiry_date <= date("Y-m-d"))->sum('rented_nft');
+
+    // Total NFTs and rented NFT sum
+    $total = $familyNFTs->sum('rented_nft');
+    $totalFamilyNFTs = $familyNFTs->count();
+
+    // Return the view with data
+    return view('admin.users.remove_nft', compact('user', 'familyNFTs', 'totalFamilyNFTs', 'activePlan', 'expiredPlan', 'total', 'pageTitle'));
+}
+
+    public function updateAutoRenewal(Request $request)
+    {
+        $user = auth()->user();
+
+        // Update the Auto Renewal flag for a specific NFT
+        RentNFT::where('user_id', $user->id)
+               ->where('id', $request->input('nftid'))
+               ->update(['auto_renewal' => $request->input('auto_renewal')]);
+
+        return response()->json(['status' => true, 'message' => 'Auto renewal updated successfully.']);
+    }
+
+    public function updateManualRenewal(Request $request)
+    {
+
+        // Find the specific RentNFT by ID
+        $vitem = RentNFT::find($request->input('mnftid'));
+        if ($vitem) {
+            $general = gs();  // Global settings or rates
+            $nft_amount = $vitem->rented_nft * 12; // Example: 12$ for renewal
+            $nft_amount = ($nft_amount / $general->price_ft);
+
+            // Check if the user has sufficient balance
+            $user = User::find($vitem->user_id);
+            if ($nft_amount <= $user->deposit_ft) {
+                // Deduct the amount from the user's deposit
+                $user->deposit_ft -= $nft_amount;
+                $user->save();
+
+                // Update the NFT contract expiry date
+                $vitem->contract_expiry_date = date('Y-m-d', strtotime('+90 days')); // 90 days renewal
+                $vitem->save();
+
+                // Log the renewal transaction
+                Transaction::create([
+                    'user_id' => $user->id,
+                    'amount' => $nft_amount,
+                    'charge' => 0,
+                    'trx_type' => '-',
+                    'trx' => getTrx(),
+                    'wallet_type' => 'Deposit Wallet',
+                    'details' => 'Manual Renewal of FamilyNFT'
+                ]);
+
+                return response()->json(['status' => true, 'message' => 'Manual renewal successful.']);
+            } else {
+                return response()->json(['status' => false, 'message' => 'Insufficient Deposit Balance!']);
+            }
+        } else {
+            return response()->json(['status' => false, 'message' => 'NFT not found!']);
+        }
+    }
+
     
     public function addFamilyNFT(Request $request, $id)
     {
