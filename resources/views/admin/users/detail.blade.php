@@ -174,12 +174,16 @@
                                 <i class="las la-plus-circle"></i> @lang('Add FamilyNFT')
                             </button>
                         </div>
-
                         <div class="flex-fill">
-                            <button data-bs-toggle="modal" data-bs-target="#removeFamilyNFTModal" class="btn btn--danger btn--shadow w-100 btn-lg bal-btn" data-act="add">
+                            <button onclick="openRemoveNFTPage({{ $user->id }})" class="btn btn--danger btn--shadow w-100 btn-lg bal-btn">
                                 <i class="las la-minus-circle"></i> @lang('Remove FamilyNFT')
                             </button>
                         </div>
+                        {{-- <div class="flex-fill">
+                            <button data-bs-toggle="modal" data-bs-target="#removeFamilyNFTModal" class="btn btn--danger btn--shadow w-100 btn-lg bal-btn" data-act="add">
+                                <i class="las la-minus-circle"></i> @lang('Remove FamilyNFT')
+                            </button>
+                        </div> --}}
                         @endif
                     @else
                     @endif
@@ -687,7 +691,7 @@
     </div>
 
     {{-- Remove Family NFT MODAL --}}
-    <div id="removeFamilyNFTModal" class="modal fade" tabindex="-1" role="dialog">
+    {{-- <div id="removeFamilyNFTModal" class="modal fade" tabindex="-1" role="dialog">
         <div class="modal-dialog" role="document">
             <div class="modal-content">
                 <div class="modal-header">
@@ -712,7 +716,7 @@
                 </form>
             </div>
         </div>
-    </div>
+    </div> --}}
 
 
     <div id="updateSponsorEmail" class="modal fade" tabindex="-1" role="dialog">
@@ -801,6 +805,11 @@
 
 @push('script')
 <script>
+         function openRemoveNFTPage(userId) {
+        // Correct route name with the "admin" prefix
+        var url = "{{ route('admin.users.remove.familynft', ':id') }}".replace(':id', userId);
+        window.open(url, '_blank'); // Open the URL in a new tab
+    }
     (function($){
     "use strict"
         $('.bal-btn').click(function(){
