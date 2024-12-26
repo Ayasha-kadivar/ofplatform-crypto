@@ -34,7 +34,8 @@ Route::middleware('admin')->group(function () {
     Route::post('admin/invest/update_auto_renewal', 'ManageUsersController@updateAutoRenewal')->name('admin.invest.update_auto_renewal');
     Route::post('admin/invest/update_manual_nft', 'ManageUsersController@updateManualRenewal')->name('admin.invest.update_manual_nft');
 
-
+    Route::post('/delete-selected-nfts', 'ManageUsersController@deleteSelectedNfts')->name('delete-selected-nfts');
+    Route::post('/delete-nft', 'ManageUsersController@deleteNFTs')->name('delete-nft');
     Route::controller('AdminController')->group(function () {
         Route::get('dashboard', 'dashboard')->name('dashboard');
         Route::get('profile', 'profile')->name('profile');

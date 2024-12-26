@@ -1261,7 +1261,33 @@ class ManageUsersController extends Controller
         }
     }
 
-    
+    public function deleteNFTs(Request $request)
+{
+    $nftId = $request->input('nftId');
+    $quantity = $request->input('quantity');
+
+    $nft = RentNft::findOrFail($nftId);
+
+    if ($quantity < 1 || $quantity > $nft->rented_nft) {
+        return response()->json(['error' => 'Invalid quantity'], 400);
+    }
+
+    // Calculate the remaining NFTs
+    $remaining = $nft->rented_nft - $quantity;
+
+    if ($remaining <= 0) {
+        // If all NFTs are deleted, remove the record
+        $nft->delete();
+        return response()->json(['success' => true, 'message' => 'All NFTs deleted, record removed.']);
+    } else {
+        // Otherwise, update the count
+        $nft->rented_nft = $remaining;
+        $nft->save();
+        return response()->json(['success' => true, 'message' => 'NFTs deleted successfully.']);
+    }
+}
+
+
     public function addFamilyNFT(Request $request, $id)
     {
         $request->validate([
